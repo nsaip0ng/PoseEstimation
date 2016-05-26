@@ -141,15 +141,14 @@ def main():
             #	trackFilteredObject(x,y,threshold,cameraFeed);
             
             # count the number of blobs (aka the leds we could detect)
-            contours,hierarchy = cv2.findContours(threshold_morph.clone(),cv2.CV_RETR_EXTERNAL 
-                ,cv2.CV_CHAIN_APPROX_NONE)
+            contours,hierarchy = cv2.findContours(np.copy(threshold_morph),cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
             
             # identify the blobs in the image
             numPoints = 0 # the number of detected LEDs
             distorted_points = []
             refArea = 0
             i = 0
-            while (i < contours.size()):
+            while (i < len(contours)):
                 area = cv2.contourArea(contours[i]) # get the area
                 #rect = cv2.boundingRect(contours[i]) # bounding rectangle box
                 #radius = (rect.width + rect.height) / 4 # average radius
@@ -195,5 +194,5 @@ def main():
     cv2.imshow('Original',img)
     '''
     
-    if __name__ == '__main__':
+if __name__ == '__main__':
         main()
