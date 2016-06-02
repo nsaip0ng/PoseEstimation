@@ -1,7 +1,10 @@
-# LED detector 
-# file detectLED.py
-# Written by Nopparuj Saipong
-# Last Updated: May 23, 2016
+'''
+LED detector 
+file: detectLED.py
+function: detect LED and return center points of the led
+Written by Nopparuj Saipong
+Last Updated: May 31, 2016
+'''
 
 import cv2
 import numpy as np
@@ -13,12 +16,31 @@ import glob
 # 1) We will then apply a thresholding fuunction to it to eliminate what is
 # not wanted
 
+class Filter:
+    V_MIN = 253
+    V_MAX = 255
+    S_MIN = 0
+    def __init__(self,color):
+        if (color == "red"):
+            self.H_MIN = 0
+            self.H_MAX = 50
+            self.S_MAX = 12
+        if (color == "green"):
+            self.H_MIN = 83
+            self.H_MAX = 104 
+            self.S_MAX = 5
+        if (color == "blue"):
+            self.H_MIN = 80
+            self.H_MAX = 93
+            self.S_MAX = 18
+
+
 H_MIN = 0
-H_MAX = 256
+H_MAX = 255
 S_MIN = 0
-S_MAX = 256
+S_MAX = 255
 V_MIN = 0
-V_MAX = 256
+V_MAX = 255
 
 MIN_OBJECT_AREA = 10
 MAX_OBJECT_AREA = 100
@@ -51,8 +73,8 @@ def morphOps(thresh):
     Current kernal right now is used by 5px by 5px rectangle. 
     '''
     
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(5,5))
-    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(3,3))
+    modifiedImg = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
 
     '''
     #create structuring element that will be used to "dilate" and "erode" image.
@@ -64,10 +86,12 @@ def morphOps(thresh):
     cv2.erode(thresh,thresh,erodeElement)
     cv2.dilate(thresh,thresh,dilateElement)
     cv2.dilate(thresh,thresh,dilateElement)
-    '''    
+    '''  
+    return modifiedImg
     
 def guassianBlur(img):
-    img = cv2.GaussianBlur(img,(5,5),0)
+    blurredImg = cv2.GaussianBlur(img,(31,31),0,0)
+    return blurredImg
     
 def drawObject(centers, frame):
     i = 0
@@ -77,8 +101,9 @@ def drawObject(centers, frame):
            
 def main():
     
-    trackObjects = False
+    trackObjects = True
     useMorphOps = True
+    color = "blue"
     
     #//x and y values for the location of the object
     #int x=0, y=0;
@@ -87,7 +112,7 @@ def main():
     createBars()
     
     # Video capture object to acquire webcam feed
-    capture = cv2.VideoCapture(1)
+    capture = cv2.VideoCapture(0)
     
     #//set height and width of capture frame
     #capture.set(CV_CAP_PROP_FRAME_WIDTH,FRAME_WIDTH);
@@ -102,6 +127,9 @@ def main():
         
         # capture the frame
         ret, cameraFeed = capture.read()
+        
+        # Currently the trackbar is disabled. To reenable,
+        # user MUST recreate variables listed below of default values.
         
         # Get trackbar positions
         H_MIN = cv2.getTrackbarPos("H_MIN",trackbarWindowName)
@@ -120,6 +148,9 @@ def main():
             
             # filter HSV image between values and store filtered image to
             # threshold matrix
+            colorFilter = Filter(color)
+            #lower_mask = np.array([colorFilter.H_MIN,colorFilter.S_MIN,colorFilter.V_MIN])
+            #higher_mask = np.array([colorFilter.H_MAX,colorFilter.S_MAX,colorFilter.V_MAX])
             lower_mask = np.array([H_MIN,S_MIN,V_MIN])
             higher_mask = np.array([H_MAX,S_MAX,V_MAX])
             mask = cv2.inRange(HSV,lower_mask,higher_mask)
@@ -131,47 +162,50 @@ def main():
             #perform morphological operations on thresholded image to eliminate noise
             #and emphasize the filtered object(s)
             if(useMorphOps):
-                morphOps(threshold_morph)
-                guassianBlur(threshold_blur)
+                threshold_morph = morphOps(threshold_morph)
+                threshold_blur  = guassianBlur(threshold_blur)
                 
             #pass in thresholded frame to our object tracking function
             #this function will return the x and y coordinates of the
             #filtered object
             #if(trackObjects)
             #	trackFilteredObject(x,y,threshold,cameraFeed);
-            
-            # count the number of blobs (aka the leds we could detect)
-            contours,hierarchy = cv2.findContours(np.copy(threshold_morph),cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
-            
-            # identify the blobs in the image
-            numPoints = 0 # the number of detected LEDs
-            distorted_points = []
-            refArea = 0
-            i = 0
-            while (i < len(contours)):
-                area = cv2.contourArea(contours[i]) # get the area
-                #rect = cv2.boundingRect(contours[i]) # bounding rectangle box
-                #radius = (rect.width + rect.height) / 4 # average radius
-                mu = cv2.moments(contours[i])
-               
-                if((area>MIN_OBJECT_AREA) and (area<MAX_OBJECT_AREA) and (area>refArea)):
-                    cx = mu.m10 / mu.m00
-                    cy = mu.m01 / mu.m00
-                    #mc = cv::Point2f(mu.m10 / mu.m00, mu.m01 / mu.m00) + cv::Point2f(ROI.x, ROI.y);
-                    distorted_points.append([cx,cy]) # store location as tuple
-                    numPoints = numPoints + 1
-    
-                i = i + 1
+
+            if (trackObjects):
+                # count the number of blobs (aka the leds we could detect)
+                contours,hierarchy = cv2.findContours(np.copy(threshold_morph),cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
                 
-            centers = np.array(distorted_points)     
+                # identify the blobs in the image
+                numPoints = 0 # the number of detected LEDs
+                distorted_points = []
+                refArea = 0
+                i = 0
+                while (i < len(contours)):
+                    area = cv2.contourArea(contours[i]) # get the area
+                    #rect = cv2.boundingRect(contours[i]) # bounding rectangle box
+                    #radius = (rect.width + rect.height) / 4 # average radius
+                    mu = cv2.moments(contours[i])
+                
+                    if((area>MIN_OBJECT_AREA) and (area<MAX_OBJECT_AREA) and (area>refArea)):
+                        cx = mu['m10'] / mu['m00']
+                        cy = mu['m01'] / mu['m00']
+                        #mc = cv::Point2f(mu.m10 / mu.m00, mu.m01 / mu.m00) + cv::Point2f(ROI.x, ROI.y);
+                        distorted_points.append((cx,cy)) # store location as tuple
+                        numPoints = numPoints + 1
+        
+                    i = i + 1
+                    
+                centers = np.array(distorted_points)    
        
             # show frames 
             cv2.imshow(windowName4,threshold_blur);
             cv2.imshow(windowName3,threshold_morph);
             cv2.imshow(windowName2,mask);
-            cv2.imshow(windowName,cameraFeed);
-            cv2.imshow(windowName1,HSV);
+            #cv2.imshow(windowName,cameraFeed);
+            #cv2.imshow(windowName1,HSV);
     
+            print centers
+            
         # allow 30 ms for screen to refresh and wait for ESC
         k = cv2.waitKey(30) & 0xFF
         if k == 27:
