@@ -97,8 +97,68 @@ def drawObject(centers, frame):
     i = 0
     while (i < centers.size()):
         cv2.circle(frame,centers[i],20,(0,255,0),2)
-        i = i + 1 
-           
+        i = i + 1
+        
+def trackFilteredObject(cameraFeed,threshold):
+    ''' 
+    Returns a set of'center points' of the blob areas which met the requirement
+    for tracking.
+    Input - cameraFeed = the image frame taken from the camera
+            threshold  = the thresholded and morphed or filtered image
+    '''
+    
+    contours,hierarchy = cv2.findContours(np.copy(threshold),cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+                
+    # identify the blobs in the image
+    numPoints = 0 # the number of detected LEDs
+    distorted_points = []
+    refArea = 0
+    i = 0
+    while (i < len(contours)):
+            area = cv2.contourArea(contours[i]) # get the area
+            #rect = cv2.boundingRect(contours[i]) # bounding rectangle box
+            #radius = (rect.width + rect.height) / 4 # average radius
+            mu = cv2.moments(contours[i])
+                
+            if((area>MIN_OBJECT_AREA) and (area<MAX_OBJECT_AREA) and (area>refArea)):
+                cx = mu['m10'] / mu['m00']
+                cy = mu['m01'] / mu['m00']
+                #mc = cv::Point2f(mu.m10 / mu.m00, mu.m01 / mu.m00) + cv::Point2f(ROI.x, ROI.y);
+                distorted_points.append((cx,cy)) # store location as tuple
+                numPoints = numPoints + 1
+        
+            i = i + 1
+                    
+    centers = np.array(distorted_points)
+    return centers    
+
+def drawCrosshairs(coordinates,img):
+    height, width = img.shape[:2]
+    drawn = np.copy(img)
+    for tuples in coordinates:
+            x, y = tuples
+            x = int(x)
+            y = int(y)
+            print (x,y)
+            cv2.circle(drawn,(x,y),20,(0,255,0),5)
+            if(y-25>0):
+                cv2.line(drawn,(x,y),(x,y-25),(0,255,0),5)
+            else: 
+                cv2.line(drawn,(x,y),(x,0),(0,255,0),5)
+            if(y+25<height):
+                cv2.line(drawn,(x,y),(x,y+25),(0,255,0),5)
+            else:
+                cv2.line(drawn,(x,y),(x,height),(0,255,0),5)
+            if(x-25>0):
+                cv2.line(drawn,(x,y),(x-25,y),(0,255,0),5)
+            else:
+                cv2.line(drawn,(x,y),(0,y),(0,255,0),5)
+            if(x+25<width):
+                cv2.line(drawn,(x,y),(x+25,y),(0,255,0),5)
+            else:
+                cv2.line(drawn,(x,y),(width,y),(0,255,0),5)
+    return drawn
+                
 def main():
     
     trackObjects = True
@@ -172,6 +232,7 @@ def main():
             #	trackFilteredObject(x,y,threshold,cameraFeed);
 
             if (trackObjects):
+                '''
                 # count the number of blobs (aka the leds we could detect)
                 contours,hierarchy = cv2.findContours(np.copy(threshold_morph),cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
                 
@@ -196,12 +257,16 @@ def main():
                     i = i + 1
                     
                 centers = np.array(distorted_points)    
-       
+                '''
+                centers = trackFilteredObject(cameraFeed,threshold_morph)
+                cameraFeed = drawCrosshairs(centers,cameraFeed)
+               
+                
             # show frames 
             cv2.imshow(windowName4,threshold_blur);
             cv2.imshow(windowName3,threshold_morph);
             cv2.imshow(windowName2,mask);
-            #cv2.imshow(windowName,cameraFeed);
+            cv2.imshow(windowName,cameraFeed);
             #cv2.imshow(windowName1,HSV);
     
             print centers
